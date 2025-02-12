@@ -21,27 +21,35 @@ export default function ImportArchives() {
   
     const newFiles = await Promise.all(
       uploadedFiles.map(async (file) => {
-        const text = await file.text(); // Read the text content of the file
+        const text = await file.text();
   
         let parsedContent;
         try {
-          parsedContent = JSON.parse(text); // Try parsing as JSON
+          parsedContent = JSON.parse(text);
         } catch (error) {
-          parsedContent = { rawText: text }; // If not JSON, store as plain text
+          parsedContent = { rawText: text };
         }
   
         return {
           name: file.name,
           size: file.size,
-          content: parsedContent, // Store structured content
+          content: parsedContent,
         };
       })
     );
   
-    localStorage.setItem("savedFiles", JSON.stringify([...savedFiles, ...newFiles]));
+    // Store all files together in a single entry
+    const newEntry = {
+      id: Date.now(), // Unique ID
+      files: newFiles, // Store all files in one entry
+    };
+  
+    const updatedFiles = [...savedFiles, newEntry];
+    localStorage.setItem("savedFiles", JSON.stringify(updatedFiles));
+  
+    console.log("Updated savedFiles JSON:", JSON.stringify(updatedFiles, null, 2));
   };
   
-
   const handleUpload = async () => {
     if (!files.length) {
       setError("Por favor, selecione pelo menos um arquivo.");
@@ -113,7 +121,6 @@ export default function ImportArchives() {
           ))}
         </div>
       </main>
-
     </div>
   );
 }
