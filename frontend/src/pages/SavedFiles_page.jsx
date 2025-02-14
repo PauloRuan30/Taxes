@@ -1,12 +1,19 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { FilePond, registerPlugin } from "react-filepond";
+import "filepond/dist/filepond.min.css";
+import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
+import FilePondPluginFileValidateSize from "filepond-plugin-file-validate-size";
+
+registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
 export default function SavedFiles() {
   const [savedFiles, setSavedFiles] = useState([]);
-  const [selectedEntry, setSelectedEntry] = useState(null); // To store selected group
-  const [selectedFiles, setSelectedFiles] = useState([]); // To store selected files
-  const [modalOpen, setModalOpen] = useState(false); // Controls modal visibility
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newFiles, setNewFiles] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,7 +56,8 @@ export default function SavedFiles() {
 
   const openSelectionModal = (entry) => {
     setSelectedEntry(entry);
-    setSelectedFiles(entry.files); // Default to all selected
+    setSelectedFiles(entry.files);
+    setNewFiles([]); // Reset new files array
     setModalOpen(true);
   };
 
@@ -58,6 +66,41 @@ export default function SavedFiles() {
       prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
     );
   };
+
+  const handleAddFiles = async () => {
+    if (!newFiles.length) return;
+  
+    const updatedFiles = [...selectedEntry.files];
+  
+    const newFileObjects = await Promise.all(
+      newFiles.map(async (fileItem) => {
+        const file = fileItem.file; // ✅ Access actual file
+        const text = await file.text();
+  
+        let parsedContent;
+        try {
+          parsedContent = JSON.parse(text);
+        } catch {
+          parsedContent = { rawText: text };
+        }
+  
+        return { name: file.name, size: file.size, content: parsedContent };
+      })
+    );
+  
+    updatedFiles.push(...newFileObjects);
+  
+    // Update localStorage
+    const updatedSavedFiles = savedFiles.map((group) =>
+      group.id === selectedEntry.id ? { ...group, files: updatedFiles } : group
+    );
+  
+    localStorage.setItem("savedFiles", JSON.stringify(updatedSavedFiles));
+    setSavedFiles(updatedSavedFiles);
+    setSelectedFiles(updatedFiles);
+    setNewFiles([]);
+  };
+  
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -99,12 +142,13 @@ export default function SavedFiles() {
         )}
       </div>
 
-      {/* Modal for file selection */}
+      {/* Modal for file selection and adding new files */}
       {modalOpen && selectedEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
             <h2 className="text-xl font-bold mb-4">Selecionar Arquivos</h2>
-            <div className="max-h-60 overflow-auto">
+
+            <div className="max-h-40 overflow-auto">
               {selectedEntry.files.map((file, index) => (
                 <div key={index} className="flex items-center space-x-3 mb-2">
                   <input
@@ -116,6 +160,25 @@ export default function SavedFiles() {
                 </div>
               ))}
             </div>
+
+            {/* FilePond Input for Adding More Files */}
+            <h3 className="text-lg font-semibold mt-4">Adicionar Arquivos</h3>
+            <FilePond
+              files={newFiles}
+              onupdatefiles={setNewFiles}
+              allowMultiple={true}
+              maxFiles={10}
+              acceptedFileTypes={["text/plain"]}
+              maxFileSize="100MB"
+              labelIdle='Arraste arquivos aqui ou <span class="filepond--label-action">Escolha</span>'
+            />
+            <button
+              onClick={handleAddFiles}
+              className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-full mt-2"
+            >
+              Adicionar Arquivos ao Grupo
+            </button>
+
             <div className="mt-4 flex justify-between">
               <button
                 onClick={() => setModalOpen(false)}

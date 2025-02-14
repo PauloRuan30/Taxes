@@ -104,3 +104,4 @@ def delete_business(business_id: int, db: Session = Depends(get_db)):
     db.delete(business)
     db.commit()
     return {"message": f"Business {business.razao_social} deleted successfully"}
+

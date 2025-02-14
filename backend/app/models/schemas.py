@@ -1,8 +1,20 @@
 # models.schemas.py
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
+
+class File(Base):
+    __tablename__ = "files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, nullable=False)
+    original_filename = Column(String, nullable=False)  # Stores original file name
+    filepath = Column(String, nullable=False)
+    uploaded_at = Column(TIMESTAMP, server_default=func.now())  # Stores upload timestamp
+    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False)
+
+    business = relationship("Business", back_populates="files")
 
 class User(Base):
     __tablename__ = "users"
@@ -32,12 +44,3 @@ class Business(Base):
     
     files = relationship("File", back_populates="business")
     
-class File(Base):
-    __tablename__ = "files"
-
-    id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, nullable=False)
-    filepath = Column(String, nullable=False)
-    business_id = Column(Integer, ForeignKey("businesses.id"), nullable=False)
-
-    business = relationship("Business", back_populates="files")
