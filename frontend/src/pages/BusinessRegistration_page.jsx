@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { Dialog } from "@headlessui/react";
 
+
 const API_BASE_URL = "http://localhost:8000/business/";
 
 const BusinessRegistration = ({ onClose, fetchBusinesses }) => {

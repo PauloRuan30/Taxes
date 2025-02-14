@@ -12,6 +12,7 @@ import AuthForm from "./components/auth/AuthForm";
 import ForgotPassword from "./components/auth/ForgotPassword";
 import UserManagement from "./pages/UserManagement";
 import DefaultLayout from "./pages/Layout/DefaultLayout";
+import BusinessDetails from "./pages/BusinessDetails_page"; // Import the new page
 
 // Function to check if user is authenticated
 const isAuthenticated = () => {
@@ -42,6 +43,7 @@ function App() {
           element={
             <ProtectedRoute>
               <Routes>
+              <Route path="/business/:businessId" element={<BusinessDetails />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/businessRegistration" element={<BusinessRegistrationPage />} />
                 <Route path="/BusinessManagement" element={<BusinessManagement />} />

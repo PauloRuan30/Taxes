@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from database import get_db
-from models.schemas import Business
+from models.schemas import Business, File
 from datetime import datetime
 from typing import Optional
 
@@ -86,8 +86,27 @@ def create_business(business_data: BusinessCreate, db: Session = Depends(get_db)
 
 @router.get("/{business_id}", response_model=dict)
 def get_business(business_id: int, db: Session = Depends(get_db)):
-    business = get_business_by_id(business_id, db)
-    return {"id": business.id, "razao_social": business.razao_social, "cnpj": business.cnpj}
+    business = db.query(Business).filter(Business.id == business_id).first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    return {
+        "id": business.id,
+        "razao_social": business.razao_social,
+        "cnpj": business.cnpj,
+        "inscricao_estadual": business.inscricao_estadual,
+        "inscricao_municipal": business.inscricao_municipal,
+        "porte_empresa": business.porte_empresa,
+        "endereco": business.endereco,
+        "bairro": business.bairro,
+        "numero": business.numero,
+        "cep": business.cep,
+        "cidade": business.cidade,
+        "nome_fantasia": business.nome_fantasia,
+        "servicos_produtos": business.servicos_produtos,
+        "nicho_mercado": business.nicho_mercado,
+    }
+
 
 @router.put("/{business_id}", response_model=dict)
 def update_business(business_id: int, business_data: BusinessUpdate, db: Session = Depends(get_db)):
@@ -104,4 +123,15 @@ def delete_business(business_id: int, db: Session = Depends(get_db)):
     db.delete(business)
     db.commit()
     return {"message": f"Business {business.razao_social} deleted successfully"}
+
+@router.get("/{business_id}/files", response_model=list[dict])
+def get_business_files(business_id: int, db: Session = Depends(get_db)):
+    business = db.query(Business).filter(Business.id == business_id).first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    files = db.query(File).filter(File.business_id == business_id).all()
+
+    return [{"id": f.id, "filename": f.filename, "uploaded_at": f.uploaded_at} for f in files]
+
 

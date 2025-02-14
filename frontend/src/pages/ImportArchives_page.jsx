@@ -73,21 +73,20 @@ export default function ImportArchives() {
         headers: { "Content-Type": "multipart/form-data" },
       });
   
-      if (data.errors?.length) {
-        setError("Alguns arquivos apresentaram erros.");
-      } else {
-        await saveFilesLocally(files.map((f) => f.file)); 
-  
-        // ✅ Redirect to tablePage with uploaded data
-        navigate("/tablePage", { state: { data: data.data, companyId: selectedCompany } });
+      if (data.errors && data.errors.length > 0) {
+        setError(data.errors.map(err => err.msg).join(", ")); // Display error messages correctly
+        return;
       }
+  
+      await saveFilesLocally(files.map((f) => f.file));
+  
+      navigate("/tablePage", { state: { data: data.data, companyId: selectedCompany } });
     } catch (error) {
       setError(error.response?.data?.detail || "Falha ao carregar os arquivos.");
     } finally {
       setIsUploading(false);
     }
-  };
-  
+  };  
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -134,7 +133,9 @@ export default function ImportArchives() {
           >
             {isUploading ? "Processando..." : "Upload e Processar"}
           </button>
+          
         </div>
+        
       </div>
     </div>
   );
