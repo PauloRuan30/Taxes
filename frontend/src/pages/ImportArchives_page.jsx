@@ -31,7 +31,7 @@ export default function ImportArchives() {
 
   const saveFilesLocally = async (uploadedFiles) => {
     const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-
+  
     const newFiles = await Promise.all(
       uploadedFiles.map(async (file) => {
         const text = await file.text();
@@ -41,21 +41,22 @@ export default function ImportArchives() {
         } catch {
           parsedContent = { rawText: text };
         }
-
+  
         return {
-          name: file.name,
+          name: file.name, // Store original file name
           size: file.size,
           content: parsedContent,
-          companyId: selectedCompany, // Associate file with company
+          companyId: selectedCompany,
         };
       })
     );
-
-    const updatedFiles = [...savedFiles, { companyId: selectedCompany, files: newFiles }];
+  
+    const updatedFiles = [...savedFiles, ...newFiles];
     localStorage.setItem("savedFiles", JSON.stringify(updatedFiles));
-
+  
     console.log("Updated savedFiles JSON:", JSON.stringify(updatedFiles, null, 2));
   };
+  
 
   const handleUpload = async () => {
     if (!files.length || !selectedCompany) {
