@@ -7,56 +7,97 @@ const ExportButton = () => {
   const sheets = location.state?.data || [];
 
   const [isExporting, setIsExporting] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
-  // Function to handle export
-  const handleExport = async () => {
+  const toggleOptions = () => setShowOptions(!showOptions);
+
+  const downloadZip = (response, filename) => {
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/zip" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportFiles = async (exportType) => {
     if (sheets.length === 0) {
       alert("No data available for export.");
       return;
     }
-
     setIsExporting(true);
     try {
-      // Prepare data for the backend (each file's sheets)
+      // Prepare export payload. Optionally, you can include a "selectedBlocks" field.
       const exportPayload = [
         {
-          file_name: "exported_file.txt", // Adjust dynamically if needed
+          file_name: "exported_file",
           sheets: sheets,
+          // For CSV, you might include: selectedBlocks: ["0450"] to export only block 0450.
         },
       ];
 
-      // Send request to backend export endpoint
-      const response = await axios.post("http://localhost:8000/export/", exportPayload, {
-        responseType: "blob", // Ensure binary data is received
-      });
+      let endpoint = "http://localhost:8000/export/";
+      let filename = "exported_files.zip";
 
-      // Create a download link for the ZIP file
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/zip" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "exported_files.zip");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if (exportType === "xlsx") {
+        endpoint = "http://localhost:8000/export/xlsx/";
+        filename = "exported_files.xlsx.zip";
+      } else if (exportType === "csv") {
+        endpoint = "http://localhost:8000/export/csv/";
+        filename = "exported_files.csv.zip";
+      } else {
+        endpoint = "http://localhost:8000/export/";
+        filename = "exported_files.zip";
+      }
+
+      const response = await axios.post(endpoint, exportPayload, {
+        responseType: "blob",
+      });
+      downloadZip(response, filename);
     } catch (error) {
       console.error("Export failed:", error);
       alert("Export failed. Please try again.");
     } finally {
       setIsExporting(false);
+      setShowOptions(false);
     }
   };
 
   return (
-    <div className="fixed bottom-10 right-10">
+    <div className="fixed bottom-20 right-10 flex flex-col items-end">
+      {showOptions && (
+        <div className="mb-2 flex flex-col space-y-2">
+          <button
+            onClick={() => exportFiles("txt")}
+            disabled={isExporting}
+            className="bg-gray-700 text-white py-2 px-4 rounded-full shadow-md hover:bg-gray-800"
+          >
+            Export TXT
+          </button>
+          <button
+            onClick={() => exportFiles("xlsx")}
+            disabled={isExporting}
+            className="bg-green-500 text-white py-2 px-4 rounded-full shadow-md hover:bg-green-600"
+          >
+            Export XLSX
+          </button>
+          <button
+            onClick={() => exportFiles("csv")}
+            disabled={isExporting}
+            className="bg-blue-500 text-white py-2 px-4 rounded-full shadow-md hover:bg-blue-600"
+          >
+            Export CSV
+          </button>
+        </div>
+      )}
       <button
-        onClick={handleExport}
+        onClick={toggleOptions}
         disabled={isExporting}
-        className={`bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transition ${
-          isExporting ? "opacity-50 cursor-not-allowed" : ""
-        }`}
+        className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white p-4 rounded-full shadow-xl"
       >
-        {isExporting ? "Exporting..." : "Export Files"}
+        {isExporting ? "Exporting..." : "Exportar"}
       </button>
     </div>
   );

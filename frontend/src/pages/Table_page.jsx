@@ -8,17 +8,18 @@ import ExportButton from "../components/ExportButton";
 const validateSheets = (sheets) => {
   if (!Array.isArray(sheets)) {
     console.error("❌ sheets is not an array or is undefined:", sheets);
-    return []; // Return an empty array to prevent errors
+    return [];
   }
 
   return sheets.map((sheet) => {
-    const celldata = Array.isArray(sheet.celldata) ? sheet.celldata : []; // Ensure celldata is an array
+    const celldata = Array.isArray(sheet.celldata) ? sheet.celldata : [];
     const maxRow = celldata.reduce((acc, cell) => Math.max(acc, cell.r + 1), 100);
     const maxCol = celldata.reduce((acc, cell) => Math.max(acc, cell.c + 1), 26);
     return {
       ...sheet,
       row: maxRow,
       column: maxCol,
+      celldata,  // Ensure celldata is correctly passed
       config: { 
         authority: { sheet: 0, cell: 0 },
         merge: {},
@@ -29,7 +30,6 @@ const validateSheets = (sheets) => {
   });
 };
 
-
 const TablePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -37,29 +37,23 @@ const TablePage = () => {
 
   useEffect(() => {
     let sheetsData = [];
-  
     if (location.state?.data && Array.isArray(location.state.data) && location.state.data.length > 0) {
-      sheetsData = location.state.data;  // Use the full data array
+      sheetsData = location.state.data;
     } else {
       const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
       if (savedFiles.length > 0 && savedFiles[0].content) {
         sheetsData = savedFiles[0].content;
       }
     }
-  
-    console.log("✅ Sheets Data Loaded:", sheetsData); // Debugging
-  
     setSheets(validateSheets(sheetsData));
   }, [location.state]);
-  
 
-  // Handle changes coming from FortuneSheet
+  // Capture real-time updates from FortuneSheet
   const handleChange = useCallback((changedSheets) => {
     setSheets(validateSheets(changedSheets));
-    console.log("Updated Sheets:", changedSheets);
+    console.log("✅ Updated Sheets:", changedSheets);  
   }, []);
 
-  // If no sheets data is available, show a message with a link to saved files
   if (!sheets.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
@@ -79,7 +73,6 @@ const TablePage = () => {
     );
   }
 
-  // Calculate overall max rows and columns across all sheets (for the grid display)
   const overallMaxRow = Math.max(...sheets.map(sheet => sheet.row || 100));
   const overallMaxCol = Math.max(...sheets.map(sheet => sheet.column || 26));
 
@@ -101,7 +94,8 @@ const TablePage = () => {
   return (
     <div className="w-full h-screen">
       <Workbook {...options} />
-      <ExportButton />
+      {/* Pass updated sheets to ExportButton */}
+      <ExportButton sheets={sheets} />
     </div>
   );
 };
