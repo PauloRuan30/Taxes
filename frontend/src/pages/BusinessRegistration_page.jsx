@@ -2,13 +2,18 @@ import React, { useState } from "react";
 import axios from "axios";
 import { Dialog } from "@headlessui/react";
 
-
 const API_BASE_URL = "http://localhost:8000/business/";
 
 const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
-  const [form, setForm] = useState({ cnpj: "", razao_social: "", porte_empresa: "", inscricao_municipal: "", inscricao_estadual: "" });
+  const [form, setForm] = useState({ cnpj: "", razao_social: "", inscricao_municipal: "", inscricao_estadual: "" });
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleCreateBusiness = async () => {
+    if (!form.cnpj || !form.razao_social || !form.porte_empresa) {
+      setErrorMessage("Preencha os campos obrigatórios");
+      return;
+    }
+
     try {
       await axios.post(API_BASE_URL, form);
       alert("Empresa cadastrada com sucesso!");
@@ -16,7 +21,7 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
       onClose();
     } catch (error) {
       console.error("Erro ao cadastrar empresa:", error);
-      alert("Falha ao cadastrar empresa");
+      setErrorMessage("Preencha os campos obrigatórios");
     }
   };
 
@@ -30,7 +35,7 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
           name="cnpj"
           value={form.cnpj}
           onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-          className="w-full mb-2   p-2 border rounded-md"
+          className="w-full mb-2 p-2 border rounded-md"
         />
         <input
           type="text"
@@ -56,17 +61,8 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
           onChange={(e) => setForm({ ...form, inscricao_estadual: e.target.value })}
           className="w-full mb-2 p-2 border rounded-md"
         />
-        <select
-          name="porte_empresa"
-          value={form.porte_empresa}
-          onChange={(e) => setForm({ ...form, porte_empresa: e.target.value })}
-          className="w-full mb-4 p-2 border rounded-md"
-        >
-          <option value="">Porte da Empresa</option>
-          <option value="Pequeno Porte">Pequeno Porte</option>
-          <option value="Médio Porte">Médio Porte</option>
-          <option value="Grande Porte">Grande Porte</option>
-        </select>
+        
+        {errorMessage && <p className="text-red-500 text-sm mb-2">{errorMessage}</p>}
 
         <div className="flex justify-between">
           <button
@@ -88,4 +84,3 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
 };
 
 export default BusinessRegistration;
-  

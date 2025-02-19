@@ -1,6 +1,7 @@
 from typing import List, Dict
 from headers_config import BlockHeaders
 
+
 async def process_buffer(buffer: List[tuple], grouped_data: Dict[str, List[List[str]]]):
     current_c100 = None
     for block_type, fields in buffer:
@@ -12,18 +13,25 @@ async def process_buffer(buffer: List[tuple], grouped_data: Dict[str, List[List[
         else:
             grouped_data.setdefault(block_type, []).append(fields)
 
+
 def reassemble_c_blocks(grouped_data: Dict[str, List[List[str]]]) -> Dict[str, List[List[str]]]:
     if "C100" in grouped_data:
         c100_blocks = []
         temp_c100 = None
 
         for row in grouped_data["C100"]:
+            if isinstance(row, list) and all(isinstance(cell, str) for cell in row):
+                # Convert raw strings into cell objects
+                formatted_row = [{"v": cell.strip(), "bl": 1} for cell in row]
+            else:
+                formatted_row = row  # Already formatted properly
+
             if row[0] == "C100":
                 if temp_c100:
                     c100_blocks.append(temp_c100)
-                temp_c100 = [row]
+                temp_c100 = [formatted_row]
             elif row[0] == "C170" and temp_c100:
-                temp_c100.append(row)
+                temp_c100.append(formatted_row)
 
         if temp_c100:
             c100_blocks.append(temp_c100)
@@ -31,6 +39,8 @@ def reassemble_c_blocks(grouped_data: Dict[str, List[List[str]]]) -> Dict[str, L
         grouped_data["C100"] = [item for sublist in c100_blocks for item in sublist]
 
     return grouped_data
+
+
 
 def convert_to_fortune_sheet_format(grouped_data: Dict[str, List[List[str]]], priority_blocks: List[str]) -> List[Dict]:
     sheets = []
@@ -54,19 +64,21 @@ def convert_to_fortune_sheet_format(grouped_data: Dict[str, List[List[str]]], pr
         batch = []
         for row_idx, row in enumerate(data):
             for col_idx, value in enumerate(row):
+                # Ensure each cell follows the expected object structure
                 cell_entry = {
                     "r": row_idx,
                     "c": col_idx,
                     "v": str(value).strip(),
                     "m": str(value).strip(),
                     "ct": {"fa": "General", "t": "g"},
-                    "style": None,  
+                    "bl": 1,  # Ensure "bl" (block type) is present
+                    "style": None,
                 }
-                batch.append(cell_entry)
+                sheet["celldata"].append(cell_entry)
 
-                if len(batch) >= 1000:
-                    sheet["celldata"].extend(batch)
-                    batch = []
+        if len(batch) >= 1000:
+            sheet["celldata"].extend(batch)
+            batch = []
 
         if batch:
             sheet["celldata"].extend(batch)
@@ -76,7 +88,8 @@ def convert_to_fortune_sheet_format(grouped_data: Dict[str, List[List[str]]], pr
     order = 0
     for block_type in priority_blocks:
         if block_type in grouped_data:
-            sheets.append(create_sheet_generator(block_type, grouped_data[block_type], order))
+            sheets.append(create_sheet_generator(
+                block_type, grouped_data[block_type], order))
             processed_blocks.add(block_type)
             order += 1
 

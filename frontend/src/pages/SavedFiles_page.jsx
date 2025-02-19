@@ -69,38 +69,34 @@ export default function SavedFiles() {
 
   const handleAddFiles = async () => {
     if (!newFiles.length) return;
-  
+
     const updatedFiles = [...selectedEntry.files];
-  
+
     const newFileObjects = await Promise.all(
-      newFiles.map(async (fileItem) => {
-        const file = fileItem.file; // ✅ Access actual file
+      newFiles.map(async (file) => {
         const text = await file.text();
-  
         let parsedContent;
         try {
           parsedContent = JSON.parse(text);
         } catch {
           parsedContent = { rawText: text };
         }
-  
         return { name: file.name, size: file.size, content: parsedContent };
       })
     );
-  
+
     updatedFiles.push(...newFileObjects);
-  
+
     // Update localStorage
     const updatedSavedFiles = savedFiles.map((group) =>
       group.id === selectedEntry.id ? { ...group, files: updatedFiles } : group
     );
-  
+
     localStorage.setItem("savedFiles", JSON.stringify(updatedSavedFiles));
     setSavedFiles(updatedSavedFiles);
-    setSelectedFiles(updatedFiles);
-    setNewFiles([]);
+    setSelectedFiles(updatedFiles); // Update selected files list
+    setNewFiles([]); // Clear added files
   };
-  
 
   return (
     <div className="min-h-screen bg-gray-100">

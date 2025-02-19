@@ -1,65 +1,131 @@
-import tempfile
 import os
-import re
+import shutil
+import tempfile
+import pandas as pd
 import chardet
-import dask.bag as db
-from dask.distributed import Client
-from typing import List, Dict, Tuple
-from services.grouping import process_buffer
+from typing import List, Dict
+from headers_config import BlockHeaders  # Import the class instead of a dictionary
 
-CHUNK_SIZE = 8 * 1024 * 1024  # 8MB chunks
-BATCH_SIZE = 1000  # Number of rows to process in memory at once
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB limit
 
+# === 🔹 Detect Encoding Function === #
 def detect_encoding(file_path: str) -> str:
-    """Detect file encoding by reading the first chunk."""
+    """Detects the file encoding and ensures UTF-8 compatibility."""
     with open(file_path, 'rb') as f:
-        raw_chunk = f.read(CHUNK_SIZE)
-        result = chardet.detect(raw_chunk)
-    return result.get("encoding", "utf-8")
+        raw_data = f.read(4096)  # Read first 4KB to detect encoding
+        result = chardet.detect(raw_data)
+        detected_encoding = result.get("encoding", "utf-8")
 
-def process_line(line: str) -> Tuple[str, List[str]]:
-    """Process a single line and return (block_type, fields) if valid."""
-    line = line.strip('|')
-    fields = line.split('|')
-    if fields and re.match(r'^[A-Z0-9]{4}$', fields[0]):
-        return fields[0], fields
-    return None
+    print(f"🔍 Detected encoding for {file_path}: {detected_encoding}")
 
-async def process_file_in_chunks(file) -> Dict[str, List[List[str]]]:
-    """Process a file asynchronously using Dask for parallel processing."""
-    grouped_data: Dict[str, List[List[str]]] = {}
+    if detected_encoding.lower() in ["ascii", "us-ascii"]:
+        print(f"⚠️ ASCII detected. Forcing UTF-8 for {file_path}")
+        return "utf-8"
 
-    # Save the uploaded file to a temporary location
-    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_file:
-        while chunk := await file.read(CHUNK_SIZE):
-            temp_file.write(chunk)
-        temp_file_path = temp_file.name
+    return detected_encoding
 
-    try:
-        client = Client()  # Initialize Dask client
+# === 🔹 Process TXT Files and Merge Blocks === #
+def process_txt(file_paths: List[str]) -> Dict[str, List[Dict]]:
+    """
+    Processes multiple .txt files and merges data into FortuneSheet JSON format, ensuring consistent headers.
+    
+    Args:
+        file_paths (List[str]): List of file paths to process.
 
-        encoding = detect_encoding(temp_file_path)
+    Returns:
+        Dict[str, List[Dict]]: Processed data in a FortuneSheet-friendly format.
+    """
+    merged_grouped_data = {}  # Dictionary to store merged data from all files
 
-        # Create a Dask Bag from the file
-        bag = db.read_text(temp_file_path, encoding=encoding, errors='ignore')
+    for file_path in file_paths:
+        encoding = detect_encoding(file_path)
+
+        # Convert file to UTF-8 if needed
+        utf8_file_path = file_path + "_utf8.txt"
+        with open(file_path, "r", encoding=encoding, errors="ignore") as f_in, open(utf8_file_path, "w", encoding="utf-8") as f_out:
+            for line in f_in:
+                cleaned_line = line.strip().strip('|')  # Remove leading/trailing pipes
+                f_out.write(cleaned_line + "\n")  # Rewrite cleaned line
+
+        # === 🔹 Read & Normalize Columns === #
+        with open(utf8_file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Find the maximum number of columns in the dataset
+        max_columns = max([len(line.split("|")) for line in lines])
+        print(f"🔍 Maximum columns detected in {file_path}: {max_columns}")
+
+        # Normalize all lines to match max_columns
+        normalized_lines = []
+        for line in lines:
+            fields = line.strip().split("|")
+            while len(fields) < max_columns:
+                fields.append("")  # Add missing columns
+            normalized_lines.append(fields)
+
+        # Convert to Pandas DataFrame
+        df_pd = pd.DataFrame(normalized_lines)
+        print(f"📊 Data shape for {file_path}: {df_pd.shape}")
+
+        # Group data by the first column (record type)
+        for _, row in df_pd.iterrows():
+            block_type = str(row[0]).strip() if pd.notna(row[0]) else "UNKNOWN"
+
+            # Ignore invalid block types (corrupted characters, non-alphanumeric)
+            if not block_type.isalnum():
+                print(f"⚠️ Skipping invalid block: {block_type}")
+                continue
+
+            # Merge records from different files
+            if block_type not in merged_grouped_data:
+                merged_grouped_data[block_type] = []
+            merged_grouped_data[block_type].append(row.tolist())
+
+        os.remove(utf8_file_path)  # Clean up temp file
+
+    # === 🔹 Convert to FortuneSheet format === #
+    fortune_sheets = []
+    for block_type, rows in merged_grouped_data.items():
+        sheet_data = []
         
-        # Process lines in parallel, filtering out None values
-        processed_bag = bag.map(process_line).filter(lambda x: x is not None)
+        # Get headers using the BlockHeaders class method
+        headers = BlockHeaders.get_headers(block_type)
+        expected_columns = len(headers)
 
-        # Compute results in chunks
-        buffer = []
-        for block_type, fields in processed_bag.compute():
-            buffer.append((block_type, fields))
-            if len(buffer) >= BATCH_SIZE:
-                await process_buffer(buffer, grouped_data)
-                buffer = []  # Clear buffer
+        # Ensure headers appear only once at the top
+        for col_idx, header in enumerate(headers):
+            sheet_data.append({
+                "r": 0,  # Always the first row
+                "c": col_idx,  # Column index
+                "v": {
+                    "v": header,
+                    "m": header,
+                    "ct": {"fa": "General", "t": "g"},
+                    "bl": 1
+                }
+            })
 
-        # Process remaining lines
-        if buffer:
-            await process_buffer(buffer, grouped_data)
+        # Add merged data rows
+        row_idx = 1
+        for row in rows:
+            row = row[:expected_columns]  # Truncate to match expected columns
+            for col_idx, value in enumerate(row):
+                if pd.notna(value):
+                    sheet_data.append({
+                        "r": row_idx,
+                        "c": col_idx,
+                        "v": {
+                            "v": value.strip(),
+                            "m": str(value).strip(),
+                            "ct": {"fa": "General", "t": "g"}
+                        }
+                    })
+            row_idx += 1  # Increment row index for FortuneSheet
 
-    finally:
-        os.unlink(temp_file_path)  # Cleanup temp file
-        client.close()  # Close Dask client
+        # Append each block as a separate sheet
+        fortune_sheets.append({
+            "name": block_type,  # Correct sheet name without "Block"
+            "celldata": sheet_data
+        })
 
-    return grouped_data
+    return fortune_sheets

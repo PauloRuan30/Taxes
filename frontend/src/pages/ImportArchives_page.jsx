@@ -34,30 +34,35 @@ export default function ImportArchives() {
   
     const newFiles = await Promise.all(
       uploadedFiles.map(async (file) => {
-        const text = await file.text();
-        let parsedContent;
         try {
-          parsedContent = JSON.parse(text);
-        } catch {
-          parsedContent = { rawText: text };
-        }
+          const text = await file.text(); // Read file content as text
+          let parsedContent = text;
   
-        return {
-          name: file.name, // Store original file name
-          size: file.size,
-          content: parsedContent,
-          companyId: selectedCompany,
-        };
+          // Ensure content is valid (trim and remove special chars if needed)
+          parsedContent = parsedContent.replace(/\uFFFD/g, ""); // Remove corrupted chars
+  
+          return {
+            fileName: file.name, // Store file name
+            companyId: selectedCompany, // Store company ID
+            content: parsedContent, // Ensure content is text
+          };
+        } catch (error) {
+          console.error("Error reading file:", file.name, error);
+          return null;
+        }
       })
     );
   
-    const updatedFiles = [...savedFiles, ...newFiles];
+    // Filter out null values in case of read errors
+    const validFiles = newFiles.filter(file => file !== null);
+  
+    // Ensure storage structure is correct
+    const updatedFiles = [...savedFiles, ...validFiles];
     localStorage.setItem("savedFiles", JSON.stringify(updatedFiles));
   
     console.log("Updated savedFiles JSON:", JSON.stringify(updatedFiles, null, 2));
   };
   
-
   const handleUpload = async () => {
     if (!files.length || !selectedCompany) {
       setError("Selecione uma empresa e pelo menos um arquivo.");
@@ -67,28 +72,40 @@ export default function ImportArchives() {
     setIsUploading(true);
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file.file));
-    formData.append("company_id", selectedCompany); // Send company ID
+    formData.append("company_id", selectedCompany);
   
     try {
       const { data } = await axios.post("http://localhost:8000/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
   
-      if (data.errors && data.errors.length > 0) {
-        setError(data.errors.map(err => err.msg).join(", ")); // Display error messages correctly
+      console.log("✅ API Response:", data); // Log the API response
+  
+      if (!data || !Array.isArray(data.data) || data.data.length === 0) {
+        setError("Nenhuma planilha foi processada.");
         return;
       }
   
-      await saveFilesLocally(files.map((f) => f.file));
+      // Ensure the sheets exist before navigating
+      const processedSheets = data.data[0]?.sheets || [];
   
-      navigate("/tablePage", { state: { data: data.data, companyId: selectedCompany } });
+      if (!Array.isArray(processedSheets) || processedSheets.length === 0) {
+        setError("Dados inválidos recebidos do servidor.");
+        return;
+      }
+  
+      console.log("✅ Processed Sheets:", processedSheets); // Debugging
+  
+      navigate("/tablePage", { state: { data: processedSheets, companyId: selectedCompany } });
+  
     } catch (error) {
       setError(error.response?.data?.detail || "Falha ao carregar os arquivos.");
     } finally {
       setIsUploading(false);
     }
-  };  
-
+  };
+  
+  
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-gray-800 text-white py-12 text-center">
