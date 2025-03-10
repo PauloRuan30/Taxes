@@ -5,6 +5,7 @@ import "filepond/dist/filepond.min.css";
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import FilePondPluginFileValidateSize from "filepond-plugin-file-validate-size";
 import { useNavigate } from "react-router-dom";
+import { FaFileAlt, FaShieldAlt, FaCogs, FaCube } from "react-icons/fa";
 
 registerPlugin(FilePondPluginFileValidateType, FilePondPluginFileValidateSize);
 
@@ -105,20 +106,19 @@ export default function ImportArchives() {
     }
   };
   
-  
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-gray-800 text-white py-12 text-center">
-        <h1 className="text-4xl font-bold">Importador de Arquivos</h1>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <header className="bg-gray-800 dark:bg-gray-800 text-white py-12 text-center">
+        <h1 className="text-4xl font-bold dark:text-white">Importador de Arquivos</h1>
       </header>
 
       <div className="container mx-auto py-12 px-6">
-        <div className="bg-white shadow-lg p-6 rounded-lg max-w-lg mx-auto">
+        <div className="bg-white dark:bg-gray-800 shadow-lg p-6 rounded-lg max-w-lg mx-auto">
           {/* Company Selection */}
           <select
             value={selectedCompany}
             onChange={(e) => setSelectedCompany(e.target.value)}
-            className="w-full mb-4 p-2 border rounded"
+            className="w-full mb-4 p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
           >
             <option value="">Selecione uma empresa</option>
             {companies.map((company) => (
@@ -153,8 +153,51 @@ export default function ImportArchives() {
           </button>
           
         </div>
-        
+      </div>
+
+      {/* Features Section */}
+      <main className="container mx-auto py-12 px-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+          {features.map((feature, index) => (
+            <FeatureCard key={index} {...feature} />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function FeatureCard({ icon: Icon, title, description }) {
+  return (
+    <div className="flex items-start p-6 rounded-lg bg-white dark:bg-gray-800 shadow-md">
+      <Icon className="text-5xl text-gray-900 dark:text-white mr-4" />
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
+        <p className="mt-2 text-lg text-gray-700 dark:text-gray-300">{description}</p>
       </div>
     </div>
   );
 }
+
+const features = [
+  {
+    icon: FaFileAlt,
+    title: "Instruções de Uso",
+    description: "Importe seus arquivos sped no formato .txt para que o sistema modele e exiba as informações do arquivo em uma tabela.",
+  },
+  {
+    icon: FaShieldAlt,
+    title: "Etapa 1",
+    description: "1. Clique no botão 'Escolher arquivo' e selecione um ou mais arquivos .txt do seu computador.",
+  },
+  {
+    icon: FaCogs,
+    title: "Etapa 2",
+    description: "2. Verifique o formato para garantir que as informações sejam lidas corretamente.",
+  },
+  {
+    icon: FaCube,
+    title: "Etapa 3",
+    description: "3. Clique em 'Upload e Processar' para carregar os dados e espere os dados serem carregados; após isso, você será direcionado para a tabela.",
+  },
+];
