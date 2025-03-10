@@ -164,7 +164,7 @@ export default function BusinessDetails() {
   if (!business) return <p className="text-red-500">Erro: Empresa não encontrada.</p>;
 
   return (
-    <div className="container mx-auto py-12 px-6">
+    <div className="container mx-auto py-12 px-6 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <h1 className="text-3xl font-bold mb-6">{business.razao_social}</h1>
       <p><strong>CNPJ:</strong> {business.cnpj}</p>
       <p><strong>Inscrição Estadual:</strong> {business.inscricao_estadual || "N/A"}</p>
@@ -188,7 +188,7 @@ export default function BusinessDetails() {
                 type="text"
                 value={value || ""}
                 onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
-                className="border p-2 rounded w-full"
+                className="border p-2 rounded w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
               />
             </div>
           ))}
@@ -226,7 +226,7 @@ export default function BusinessDetails() {
           </button>
           <ul className="mt-4">
             {files.map((file, index) => (
-              <li key={index} className="border p-2 rounded mt-2 flex items-center">
+              <li key={index} className="border p-2 rounded mt-2 flex items-center bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                 <input type="checkbox" checked={selectedFiles.includes(file)} onChange={() => toggleFileSelection(file)} className="mr-2"/>
                 {file.name}
               </li>

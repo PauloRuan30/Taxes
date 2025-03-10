@@ -83,9 +83,11 @@ const UserManagement = () => {
   }, []);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-4xl p-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">User Management</h1>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="w-full max-w-4xl p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <h1 className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-6">
+          User Management
+        </h1>
 
         <form onSubmit={handleSubmit} className="mb-6 space-y-4">
           <div className="flex flex-col space-y-2">
@@ -96,7 +98,7 @@ const UserManagement = () => {
               value={form.username}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:ring-blue-300"
+              className="w-full px-4 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring focus:ring-blue-300 dark:focus:ring-blue-500"
             />
             <input
               type="email"
@@ -105,7 +107,7 @@ const UserManagement = () => {
               value={form.email}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:ring-blue-300"
+              className="w-full px-4 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring focus:ring-blue-300 dark:focus:ring-blue-500"
             />
             <input
               type="password"
@@ -114,36 +116,36 @@ const UserManagement = () => {
               value={form.password}
               onChange={handleChange}
               required={!selectedUser} // Only required for new users
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:ring-blue-300"
+              className="w-full px-4 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring focus:ring-blue-300 dark:focus:ring-blue-500"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full px-4 py-2 font-bold text-white bg-blue-500 rounded-md hover:bg-blue-600 focus:outline-none focus:ring focus:ring-blue-300"
+            className="w-full px-4 py-2 font-bold text-white bg-blue-500 rounded-md hover:bg-blue-600 focus:outline-none focus:ring focus:ring-blue-300 dark:focus:ring-blue-500"
           >
             {selectedUser ? "Update User" : "Create User"}
           </button>
         </form>
 
-        <h2 className="text-xl font-bold text-gray-700 mb-4">User List</h2>
+        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-4">User List</h2>
 
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-200">
-              <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">Username</th>
-              <th className="px-4 py-2">Email</th>
-              <th className="px-4 py-2">Actions</th>
+            <tr className="bg-gray-200 dark:bg-gray-700">
+              <th className="px-4 py-2 text-gray-900 dark:text-white">ID</th>
+              <th className="px-4 py-2 text-gray-900 dark:text-white">Username</th>
+              <th className="px-4 py-2 text-gray-900 dark:text-white">Email</th>
+              <th className="px-4 py-2 text-gray-900 dark:text-white">Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.length > 0 ? (
               users.map((user) => (
-                <tr key={user.id} className="border-b hover:bg-gray-100">
-                  <td className="px-4 py-2">{user.id}</td>
-                  <td className="px-4 py-2">{user.username}</td>
-                  <td className="px-4 py-2">{user.email}</td>
+                <tr key={user.id} className="border-b hover:bg-gray-100 dark:hover:bg-gray-600">
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{user.id}</td>
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{user.username}</td>
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{user.email}</td>
                   <td className="px-4 py-2 space-x-2">
                     <button
                       onClick={() => handleEdit(user)}

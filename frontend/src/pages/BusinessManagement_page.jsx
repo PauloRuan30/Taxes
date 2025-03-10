@@ -35,13 +35,13 @@ const BusinessManagement = () => {
   const filteredBusinesses = businesses.filter((b) => b.cnpj.includes(searchCNPJ));
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-gray-100 p-6">
-      <h1 className="text-3xl font-bold mb-6">Gerenciamento de Empresas</h1>
+    <div className="flex flex-col items-center min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
+      <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Gerenciamento de Empresas</h1>
 
       {/* Botão para cadastrar nova empresa */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+        className="mb-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
       >
         Cadastrar Empresa
       </button>
@@ -52,12 +52,12 @@ const BusinessManagement = () => {
         placeholder="Buscar por CNPJ"
         value={searchCNPJ}
         onChange={handleSearch}
-        className="w-1/2 p-2 border rounded-md mb-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="w-1/2 p-2 border rounded-md mb-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
       />
 
       {/* Tabela de empresas */}
       <div className="overflow-x-auto w-full max-w-4xl">
-        <table className="w-full text-left border-collapse bg-white shadow-lg rounded-lg">
+        <table className="w-full text-left border-collapse bg-white dark:bg-gray-800 shadow-lg rounded-lg">
           <thead>
             <tr className="bg-blue-500 text-white">
               <th className="px-4 py-2">ID</th>
@@ -70,12 +70,12 @@ const BusinessManagement = () => {
               filteredBusinesses.map((business) => (
                 <tr
                   key={business.id}
-                  className="border-b hover:bg-gray-100 cursor-pointer"
+                  className="border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                   onClick={() => handleSelectBusiness(business)}
                 >
-                  <td className="px-4 py-2">{business.id}</td>
-                  <td className="px-4 py-2">{business.razao_social}</td>
-                  <td className="px-4 py-2">{business.cnpj}</td>
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{business.id}</td>
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{business.razao_social}</td>
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{business.cnpj}</td>
                 </tr>
               ))
             ) : (

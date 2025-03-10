@@ -27,15 +27,15 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
 
   return (
     <Dialog open={true} onClose={onClose} className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-        <h2 className="text-xl font-bold mb-4">Cadastrar Empresa</h2>
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-96">
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Cadastrar Empresa</h2>
         <input
           type="text"
           placeholder="CNPJ"
           name="cnpj"
           value={form.cnpj}
           onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-          className="w-full mb-2 p-2 border rounded-md"
+          className="w-full mb-2 p-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
         />
         <input
           type="text"
@@ -43,7 +43,7 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
           name="razao_social"
           value={form.razao_social}
           onChange={(e) => setForm({ ...form, razao_social: e.target.value })}
-          className="w-full mb-2 p-2 border rounded-md"
+          className="w-full mb-2 p-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
         />
         <input
           type="text"
@@ -51,7 +51,7 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
           name="inscricao_municipal"
           value={form.inscricao_municipal}
           onChange={(e) => setForm({ ...form, inscricao_municipal: e.target.value })}
-          className="w-full mb-2 p-2 border rounded-md"
+          className="w-full mb-2 p-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
         />
         <input
           type="text"
@@ -59,7 +59,7 @@ const BusinessRegistration = ({ onClose, fetchBusinesses }) => {
           name="inscricao_estadual"
           value={form.inscricao_estadual}
           onChange={(e) => setForm({ ...form, inscricao_estadual: e.target.value })}
-          className="w-full mb-2 p-2 border rounded-md"
+          className="w-full mb-2 p-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
         />
         
         {errorMessage && <p className="text-red-500 text-sm mb-2">{errorMessage}</p>}

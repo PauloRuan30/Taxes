@@ -6,9 +6,9 @@ const DropdownUser = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Check if user is logged in
+  // Verifica se o usuário está autenticado
   const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("token") // Use 'token' instead of 'authToken'
+    !!localStorage.getItem("token") // Usa 'token' ao invés de 'authToken'
   );
 
   useEffect(() => {
@@ -16,9 +16,9 @@ const DropdownUser = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("token"); // Ensure token key is used consistently
+    localStorage.removeItem("token"); // Garante o uso consistente da chave 'token'
     setIsAuthenticated(false);
-    navigate("/login"); // Redirect to login page
+    navigate("/login"); // Redireciona para a página de login
   };
 
   return (
@@ -29,14 +29,14 @@ const DropdownUser = () => {
       >
         <span className="hidden text-right lg:block">
           <span className="block text-sm font-medium text-black dark:text-white">
-            {isAuthenticated ? "User Name" : "Guest"}
+            {isAuthenticated ? "Nome do Usuário" : "Convidado"}
           </span>
           <span className="block text-xs">
-            {isAuthenticated ? "Authenticated" : "Not Logged In"}
+            {isAuthenticated ? "Autenticado" : "Não autenticado"}
           </span>
         </span>
         <span className="h-12 w-12 rounded-full">
-          <img src=".s/images/user/user-01.png" alt="User" />
+          <img src="./images/user/user-01.png" alt="Usuário" />
         </span>
       </button>
 
@@ -47,24 +47,24 @@ const DropdownUser = () => {
               <>
                 <li>
                   <Link to="/profile" className="flex items-center gap-3.5 text-sm font-medium hover:text-primary">
-                    My Profile
+                    Meu Perfil
                   </Link>
                 </li>
                 <li>
                   <Link to="/settings" className="flex items-center gap-3.5 text-sm font-medium hover:text-primary">
-                    Account Settings
+                    Configurações da Conta
                   </Link>
                 </li>
                 <li>
-                  <button onClick={handleLogout} className="w-full text-left px-6 py-4 text-sm font-medium hover:text-primary">
-                    Log Out
+                  <button onClick={handleLogout} className="flex items-center gap-3.5 text-sm font-medium hover:text-primary">
+                    Sair
                   </button>
                 </li>
               </>
             ) : (
               <li>
                 <Link to="/login" className="flex items-center gap-3.5 text-sm font-medium hover:text-primary">
-                  Login
+                  Entrar
                 </Link>
               </li>
             )}
