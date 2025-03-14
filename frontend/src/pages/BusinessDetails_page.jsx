@@ -25,7 +25,7 @@ export default function BusinessDetails() {
     fetchFiles();
   }, [businessId]);
 
-  // --- Load the business from /business/:businessId ---
+  // 1) Load the business from /business/:businessId
   const fetchBusiness = async () => {
     try {
       const response = await axios.get(`http://localhost:8000/business/${businessId}`);
@@ -36,44 +36,24 @@ export default function BusinessDetails() {
     }
   };
 
-  // --- Load docs from /business/:businessId/files ---
+  // 2) Load docs from /business/:businessId/files
   const fetchFiles = async () => {
     try {
       const response = await axios.get(`http://localhost:8000/business/${businessId}/files`);
-      if (response.data.length > 0) {
+      if (Array.isArray(response.data) && response.data.length > 0) {
         setFiles(response.data);
       } else {
-        // fallback to localStorage if no docs in DB
-        loadFilesFromLocalStorage();
+        setFiles([]); // No docs in DB
       }
     } catch (error) {
-      console.error("Error fetching files from API, trying localStorage...", error);
-      loadFilesFromLocalStorage();
+      console.error("Error fetching files from API:", error);
+      setFiles([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // -- LocalStorage fallback (optional) --
-  const loadFilesFromLocalStorage = () => {
-    const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-    const associatedFiles = savedFiles.find((group) => group.companyId === businessId);
-    if (associatedFiles) {
-      setFiles(associatedFiles.files);
-    } else {
-      setFiles([]);
-    }
-  };
-
-  // -- Save in localStorage (optional) --
-  const saveFilesLocally = (updatedFiles) => {
-    let savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-    savedFiles = savedFiles.filter((group) => group.companyId !== businessId);
-    savedFiles.push({ companyId: businessId, files: updatedFiles });
-    localStorage.setItem("savedFiles", JSON.stringify(savedFiles));
-  };
-
-  // ---- Update business data (PUT /business/:businessId) ----
+  // PUT /business/:businessId to update business
   const handleEditBusiness = async () => {
     try {
       await axios.put(`http://localhost:8000/business/${businessId}`, editData);
@@ -84,7 +64,7 @@ export default function BusinessDetails() {
     }
   };
 
-  // ---- Delete the business (DELETE /business/:businessId) ----
+  // DELETE /business/:businessId
   const handleDeleteBusiness = async () => {
     if (window.confirm("Tem certeza que deseja excluir esta empresa?")) {
       try {
@@ -96,12 +76,14 @@ export default function BusinessDetails() {
     }
   };
 
-  // ---- Add new files with FilePond ----
+  // 3) Add new files via FilePond
   const handleAddFiles = async () => {
     if (!newFiles.length) return;
-    const updatedFiles = [...files];
 
-    // Convert each FilePond item to a custom object in memory
+    // For demonstration, we're ONLY storing them in state.
+    // If you want them in your DB, you should call POST /upload/ with `company_id`.
+    // e.g. see "ImportArchives.jsx" code
+    const updatedFiles = [...files];
     const newFileObjects = await Promise.all(
       newFiles.map(async (fileItem) => {
         const file = fileItem.file;
@@ -115,14 +97,13 @@ export default function BusinessDetails() {
         return { name: file.name, size: file.size, content: parsedContent };
       })
     );
-
     updatedFiles.push(...newFileObjects);
-    saveFilesLocally(updatedFiles);
     setFiles(updatedFiles);
+
+    // Clear FilePond input
     setNewFiles([]);
   };
 
-  // --- If still loading or no business found
   if (loading) return <p>Carregando...</p>;
   if (!business) return <p className="text-red-500">Erro: Empresa não encontrada.</p>;
 
@@ -141,7 +122,6 @@ export default function BusinessDetails() {
       <p><strong>Serviços/Produtos:</strong> {business.servicos_produtos || "N/A"}</p>
       <p><strong>Nicho de Mercado:</strong> {business.nicho_mercado || "N/A"}</p>
 
-      {/* ---- Delete the business ---- */}
       <button
         onClick={handleDeleteBusiness}
         className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 mt-4"
@@ -149,7 +129,6 @@ export default function BusinessDetails() {
         Excluir Empresa
       </button>
 
-      {/* ---- Edit the business info ---- */}
       <h2 className="text-2xl font-bold mt-6">Editar Empresa</h2>
       {isEditing ? (
         <div className="mt-4">
@@ -182,7 +161,6 @@ export default function BusinessDetails() {
         </button>
       )}
 
-      {/* ---- FilePond to add new .txt files ---- */}
       <h2 className="text-2xl font-bold mt-6">Arquivos Associados</h2>
       <FilePond
         files={newFiles}
@@ -200,12 +178,13 @@ export default function BusinessDetails() {
         Adicionar Arquivos
       </button>
 
-      {/* ---- Display each doc from DB or localStorage, with an "Abrir" button ---- */}
       {files.length > 0 ? (
         <ul className="mt-4">
-          {files.map((doc) => (
-            <li key={doc.id} className="border p-2 rounded mt-2 flex items-center">
-              <span className="mr-2">Documento ID: {doc.id}</span>
+          {files.map((doc, idx) => (
+            <li key={idx} className="border p-2 rounded mt-2 flex items-center">
+              <span className="mr-2">
+                Documento: {doc.id || doc.name || `Arquivo ${idx + 1}`}
+              </span>
               <button
                 onClick={() => navigate("/tablePage", { state: { doc } })}
                 className="bg-blue-500 text-white px-2 py-1 rounded ml-auto"

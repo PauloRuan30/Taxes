@@ -16,33 +16,24 @@ MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB limit
 #
 # POST /upload/ : Upload and process new .txt files
 #
+#
 @router.post("/upload/")
 async def upload_files(
     files: List[UploadFile] = File(...),
-    company_id: str = Form(...),
+    company_id: str = Form(...)
 ):
-    """
-    1. Save uploaded .txt files in saved_files/<company_id>/
-    2. Process them with process_txt(...)
-    3. Insert the processed sheets into 'documents_collection' with {company_id, sheets}.
-    4. Return the new doc's ID and data
-    """
     result = {"data": [], "errors": []}
     file_paths = []
 
-    # Create the company folder for permanent storage
     company_folder = os.path.join(UPLOAD_DIR, company_id)
     os.makedirs(company_folder, exist_ok=True)
 
-    # Validate size & save
     for file in files:
         file.file.seek(0, 2)
         size = file.file.tell()
         file.file.seek(0)
         if size > MAX_FILE_SIZE:
-            result["errors"].append(
-                {"filename": file.filename, "error": "File exceeds 200MB limit"}
-            )
+            result["errors"].append({"filename": file.filename, "error": "File exceeds 200MB limit"})
             continue
         file_path = os.path.join(company_folder, file.filename)
         with open(file_path, "wb") as output_file:
@@ -50,30 +41,31 @@ async def upload_files(
         file_paths.append(file_path)
 
     try:
-        # 1) Process .txt -> FortuneSheet "sheets"
         merged_sheets = process_txt(file_paths)
+        # Check if a merged document exists for this company
+        existing_doc = await documents_collection.find_one({"company_id": company_id})
+        if existing_doc:
+            new_sheets = existing_doc.get("sheets", []) + merged_sheets
+            await documents_collection.update_one(
+                {"_id": existing_doc["_id"]}, {"$set": {"sheets": new_sheets}}
+            )
+            doc_id = str(existing_doc["_id"])
+            final_sheets = new_sheets
+        else:
+            doc = {"company_id": company_id, "sheets": merged_sheets}
+            insert_result = await documents_collection.insert_one(doc)
+            doc_id = str(insert_result.inserted_id)
+            final_sheets = merged_sheets
 
-        # 2) Insert into MongoDB
-        doc = {
+        result["data"].append({
             "company_id": company_id,
-            "sheets": merged_sheets,
-            # optional "file_names": [f.filename for f in files]
-        }
-        insert_result = await documents_collection.insert_one(doc)
-        new_id = str(insert_result.inserted_id)
-
-        result["data"].append(
-            {
-                "company_id": company_id,
-                "sheets": merged_sheets,
-                "mongo_inserted_id": new_id,
-            }
-        )
+            "sheets": final_sheets,
+            "mongo_inserted_id": doc_id
+        })
     except Exception as e:
         result["errors"].append({"error": str(e)})
 
     return result
-
 
 #
 # GET /documents/{doc_id} : Retrieve a single doc from the DB
@@ -95,6 +87,19 @@ async def get_document(doc_id: str):
         "sheets": doc["sheets"],
     }
 
+@router.delete("/documents/{company_id}/sheet/{sheet_index}")
+async def delete_sheet(company_id: str, sheet_index: int):
+    existing_doc = await documents_collection.find_one({"company_id": company_id})
+    if not existing_doc:
+        raise HTTPException(status_code=404, detail="Documento não encontrado para esta empresa.")
+    sheets = existing_doc.get("sheets", [])
+    if sheet_index < 0 or sheet_index >= len(sheets):
+        raise HTTPException(status_code=400, detail="Índice da planilha inválido.")
+    updated_sheets = sheets[:sheet_index] + sheets[sheet_index + 1:]
+    await documents_collection.update_one(
+        {"_id": existing_doc["_id"]}, {"$set": {"sheets": updated_sheets}}
+    )
+    return {"message": "Planilha excluída com sucesso", "sheets": updated_sheets}
 
 #
 # PUT /documents/{doc_id} : Update the "sheets" after user edits
