@@ -45,7 +45,10 @@ export default function ResetPassword() {
             className="p-2 border rounded w-full"
             required
           />
-          <button type="submit" className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          <button
+            type="submit"
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
             Update Password
           </button>
         </form>

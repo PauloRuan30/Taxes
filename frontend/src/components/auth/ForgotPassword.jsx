@@ -9,15 +9,18 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // calls POST /auth/forgot-password
       const response = await fetch("http://localhost:8000/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        // The backend is checking `req.email` or `req.username`.
+        // If your backend uses "username" instead, change the field name to "username": email
+        body: JSON.stringify({ email }), 
       });
 
       if (response.ok) {
         alert("Check your email for the reset link.");
-        navigate("/check-email"); // Redirect user to a confirmation page
+        navigate("/check-email");
       } else {
         const errorData = await response.json();
         alert(errorData.detail || "Error sending reset link.");
@@ -35,12 +38,12 @@ export default function ForgotPassword() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex flex-col">
             <label htmlFor="email" className="text-sm font-medium text-gray-700">
-              Email
+              Email or Username
             </label>
             <input
               id="email"
-              type="email"
-              placeholder="Enter your email"
+              type="text"
+              placeholder="Enter your email or username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="p-2 border rounded mt-1"

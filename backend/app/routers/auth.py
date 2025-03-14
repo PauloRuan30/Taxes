@@ -1,243 +1,155 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-from pydantic import BaseModel, EmailStr
-from datetime import datetime, timedelta
-import smtplib
-from email.mime.text import MIMEText
+# auth.py
 
-from database import get_db
-from models.schemas import User
+from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import status
+from typing import Optional
+from datetime import timedelta
+from bson import ObjectId
 
-# FastAPI router
-router = APIRouter()
+from models.models import UserCreate, UserInDB, UserLogin, UserPublic, ForgotPasswordRequest, ResetPasswordRequest
+from mongodb import db  # The same "db" from your mongodb.py
+from services.auth_utils import hash_password, verify_password, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
-# Password hashing configuration
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+auth_router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# JWT settings
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-RESET_TOKEN_EXPIRE_MINUTES = 30
+users_collection = db.get_collection("users")
 
-# Email configuration (Replace with actual credentials)
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 465
-SENDER_EMAIL = "your-email@gmail.com"
-SENDER_PASSWORD = "your-email-password"
+#
+# UTIL: Convert MongoDB user doc -> Public schema
+#
+def user_to_public(user_doc) -> UserPublic:
+    return UserPublic(
+        id=str(user_doc["_id"]),
+        username=user_doc["username"]
+    )
 
-# Default user credentials for testing when DB is down
-DEFAULT_USER_EMAIL = "default@example.com"
-DEFAULT_USER_PASSWORD = "password"  # plain text for testing
-DEFAULT_USER_USERNAME = "defaultuser"
+#
+# ROUTE: Register new user
+#
+@auth_router.post("/register", response_model=UserPublic)
+async def register_user(user_data: UserCreate):
+    # 1) Check if passwords match
+    if user_data.password != user_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
 
-# Helper function to hash a password
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # 2) Check if user already exists
+    existing = await users_collection.find_one({"username": user_data.username})
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken"
+        )
 
-# Helper function to verify a password
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-# Helper function to create a JWT access token
-def create_access_token(data: dict) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {**data, "exp": expire}
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# Helper function to create a password reset token
-def create_reset_token(email: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": email, "exp": expire}
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# Helper function to verify a reset token
-def verify_reset_token(token: str) -> str | None:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("sub")
-    except JWTError:
-        return None
-
-# Function to send reset email
-def send_reset_email(email: str, token: str):
-    reset_link = f"http://localhost:3000/reset-password?token={token}"
-    subject = "Password Reset Request"
-    body = f"Click the link below to reset your password:\n\n{reset_link}"
-
-    msg = MIMEText(body)
-    msg["Subject"] = subject
-    msg["From"] = SENDER_EMAIL
-    msg["To"] = email
-
-    try:
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, email, msg.as_string())
-    except smtplib.SMTPException as e:
-        raise HTTPException(status_code=500, detail=f"Error sending email: {e}")
-
-# Pydantic models for request validation
-class SignupRequest(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-class UserCreate(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-
-class UserUpdate(BaseModel):
-    username: str | None = None
-    email: EmailStr | None = None
-    password: str | None = None
-
-# Helper to try getting a user from DB; if DB fails and the request is for the default user, return that
-def get_user_with_fallback(email: str, db: Session) -> User | None:
-    try:
-        user = db.query(User).filter(User.email == email).first()
-        if user:
-            return user
-    except Exception:
-        # Database operation failed—use default user if the email matches
-        if email == DEFAULT_USER_EMAIL:
-            return User(
-                username=DEFAULT_USER_USERNAME,
-                email=DEFAULT_USER_EMAIL,
-                password=hash_password(DEFAULT_USER_PASSWORD)
-            )
-        # For other emails, we propagate the failure
-        raise HTTPException(status_code=503, detail="Service unavailable")
-    return None
-
-# Route: Get all users
-@router.get("/users")
-def get_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
-    return users
-
-# Route: Create a new user
-@router.post("/users", response_model=dict)
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
-
-    hashed_password = hash_password(user.password)
-    new_user = User(username=user.username, email=user.email, password=hashed_password)
+    # 3) Hash the password & store in DB
+    hashed = hash_password(user_data.password)
     
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {"message": f"User {new_user.username} created successfully"}
-
-# Route: Get a user by ID
-@router.get("/users/{user_id}", response_model=dict)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Store email if username looks like an email
+    email = user_data.username if '@' in user_data.username else None
     
-    return {"id": user.id, "username": user.username, "email": user.email}
+    new_user_doc = {
+        "username": user_data.username,
+        "hashed_password": hashed,
+        "email": email,
+        "is_active": True,
+        "is_superuser": False,
+        "is_verified": False
+    }
+    
+    result = await users_collection.insert_one(new_user_doc)
+    created_user = await users_collection.find_one({"_id": result.inserted_id})
 
-# Route: Update user details
-@router.put("/users/{user_id}", response_model=dict)
-def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    return user_to_public(created_user)
 
-    if user_update.username:
-        user.username = user_update.username
-    if user_update.email:
-        existing_user = db.query(User).filter(User.email == user_update.email).first()
-        if existing_user and existing_user.id != user_id:
-            raise HTTPException(status_code=400, detail="Email already in use")
-        user.email = user_update.email
-    if user_update.password:
-        user.password = hash_password(user_update.password)
+#
+# ROUTE: Login (generate JWT token)
+#
+@auth_router.post("/login")
+async def login_user(login_data: UserLogin):
+    # 1) Find user by username
+    user_doc = await users_collection.find_one({"username": login_data.username})
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
 
-    db.commit()
-    db.refresh(user)
-    return {"message": f"User {user.username} updated successfully"}
+    # 2) Verify password
+    if not verify_password(login_data.password, user_doc["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
 
-# Route: Delete a user
-@router.delete("/users/{user_id}", response_model=dict)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # 3) Create JWT token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_doc["username"]},
+        expires_delta=access_token_expires
+    )
 
-    db.delete(user)
-    db.commit()
-    return {"message": f"User {user.username} deleted successfully"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
-# Route: User signup
-@router.post("/signup")
-def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if user:
-        raise HTTPException(status_code=400, detail="Email already exists")
+#
+# ROUTE: Forgot password (fake email link)
+#
+@auth_router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    """
+    This route simulates sending an email with a reset token. 
+    In a real app, you would integrate an email provider.
+    """
+    user_doc = await users_collection.find_one({"username": req.email})
+    if not user_doc:
+        # We do not reveal if user exists or not in real scenario
+        return {"message": "If that email is registered, a reset token has been sent."}
 
-    hashed_password = hash_password(request.password)
-    new_user = User(username=request.username, email=request.email, password=hashed_password)
+    # Create a short-lived token for resetting password
+    reset_token = create_access_token(
+        data={"sub": user_doc["username"]},
+        expires_delta=timedelta(minutes=15)  # token good for 15 min
+    )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    # In a real system, store the token, or send via email link
+    # For demo, just return the token or log it
+    # You might also store it in the DB if you want to verify later
+    # but for demonstration, let's just pretend we emailed it:
+    print(f"Password reset token for {user_doc['username']}: {reset_token}")
 
-    return {"message": f"User {new_user.username} created successfully!"}
+    return {"message": "Reset token generated. Check logs for the token."}
 
-# Route: User login with fallback for default user when DB is down
-@router.post("/login")
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    # Attempt to retrieve the user (either from DB or fallback if DB is down)
-    user = get_user_with_fallback(request.email, db)
-    if not user or not verify_password(request.password, user.password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
+#
+# ROUTE: Reset password
+#
+@auth_router.post("/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    """
+    Expects a token from the forgot-password step and a new password.
+    """
+    try:
+        decoded = decode_access_token(req.token)
+        username = decoded.get("sub", None)
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+        # 2) Find the user in DB
+        user_doc = await users_collection.find_one({"username": username})
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
 
-# Route: Forgot password
-@router.post("/auth/forgot-password")
-def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        # 3) Update user's password
+        new_hashed = hash_password(req.new_password)
+        await users_collection.update_one(
+            {"_id": user_doc["_id"]},
+            {"$set": {"hashed_password": new_hashed}}
+        )
 
-    token = create_reset_token(user.email)
-    send_reset_email(user.email, token)
+        return {"message": "Password updated successfully"}
 
-    return {"message": "Password reset email sent"}
-
-# Route: Reset password
-@router.post("/auth/reset-password")
-def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    email = verify_reset_token(request.token)
-    if not email:
+    except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.password = hash_password(request.new_password)
-    db.commit()
-
-    return {"message": "Password updated successfully"}

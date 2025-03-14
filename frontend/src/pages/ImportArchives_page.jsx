@@ -30,82 +30,49 @@ export default function ImportArchives() {
     fetchCompanies();
   }, []);
 
-  const saveFilesLocally = async (uploadedFiles) => {
-    const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-  
-    const newFiles = await Promise.all(
-      uploadedFiles.map(async (file) => {
-        try {
-          const text = await file.text(); // Read file content as text
-          let parsedContent = text;
-  
-          // Ensure content is valid (trim and remove special chars if needed)
-          parsedContent = parsedContent.replace(/\uFFFD/g, ""); // Remove corrupted chars
-  
-          return {
-            fileName: file.name, // Store file name
-            companyId: selectedCompany, // Store company ID
-            content: parsedContent, // Ensure content is text
-          };
-        } catch (error) {
-          console.error("Error reading file:", file.name, error);
-          return null;
-        }
-      })
-    );
-  
-    // Filter out null values in case of read errors
-    const validFiles = newFiles.filter(file => file !== null);
-  
-    // Ensure storage structure is correct
-    const updatedFiles = [...savedFiles, ...validFiles];
-    localStorage.setItem("savedFiles", JSON.stringify(updatedFiles));
-  
-    console.log("Updated savedFiles JSON:", JSON.stringify(updatedFiles, null, 2));
-  };
-  
   const handleUpload = async () => {
     if (!files.length || !selectedCompany) {
       setError("Selecione uma empresa e pelo menos um arquivo.");
       return;
     }
-  
+
     setIsUploading(true);
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file.file));
     formData.append("company_id", selectedCompany);
-  
+
     try {
       const { data } = await axios.post("http://localhost:8000/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-  
+
       console.log("✅ API Response:", data); // Log the API response
-  
+
       if (!data || !Array.isArray(data.data) || data.data.length === 0) {
         setError("Nenhuma planilha foi processada.");
         return;
       }
-  
+
       // Ensure the sheets exist before navigating
       const processedSheets = data.data[0]?.sheets || [];
-  
+
       if (!Array.isArray(processedSheets) || processedSheets.length === 0) {
         setError("Dados inválidos recebidos do servidor.");
         return;
       }
-  
+
       console.log("✅ Processed Sheets:", processedSheets); // Debugging
-  
+
+      // If you want to jump to a table view:
       navigate("/tablePage", { state: { data: processedSheets, companyId: selectedCompany } });
-  
+
     } catch (error) {
       setError(error.response?.data?.detail || "Falha ao carregar os arquivos.");
     } finally {
       setIsUploading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <header className="bg-gray-800 dark:bg-gray-800 text-white py-12 text-center">
@@ -151,7 +118,6 @@ export default function ImportArchives() {
           >
             {isUploading ? "Processando..." : "Upload e Processar"}
           </button>
-          
         </div>
       </div>
 
@@ -183,12 +149,12 @@ const features = [
   {
     icon: FaFileAlt,
     title: "Instruções de Uso",
-    description: "Importe seus arquivos sped no formato .txt para que o sistema modele e exiba as informações do arquivo em uma tabela.",
+    description: "Importe arquivos SPED em formato .txt para que o sistema modele e exiba as informações em uma tabela.",
   },
   {
     icon: FaShieldAlt,
     title: "Etapa 1",
-    description: "1. Clique no botão 'Escolher arquivo' e selecione um ou mais arquivos .txt do seu computador.",
+    description: "1. Clique em 'Escolher arquivo' e selecione um ou mais arquivos .txt do seu computador.",
   },
   {
     icon: FaCogs,
@@ -198,6 +164,6 @@ const features = [
   {
     icon: FaCube,
     title: "Etapa 3",
-    description: "3. Clique em 'Upload e Processar' para carregar os dados e espere os dados serem carregados; após isso, você será direcionado para a tabela.",
+    description: "3. Clique em 'Upload e Processar' para carregar e aguardar o resultado, então veja a tabela.",
   },
 ];

@@ -1,199 +1,111 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from database import get_db
-from models.schemas import Business, File  # SQLAlchemy models
+# business_routes.py
+from fastapi import APIRouter, HTTPException, Body
 from datetime import datetime
-from typing import Optional
+from bson import ObjectId
 
-# Define a default business for testing
-DEFAULT_BUSINESS = {
-    "id": 0,
-    "cnpj": "00000000000000",
-    "inscricao_estadual": "0000000000",
-    "inscricao_municipal": "000000000",
-    "razao_social": "Default Business",
-    "porte_empresa": "Small",
-    "endereco": "Default Address",
-    "bairro": "Default Neighborhood",
-    "numero": "0",
-    "cep": "00000-000",
-    "cidade": "Default City",
-    "nome_fantasia": "Default Fantasia",
-    "servicos_produtos": "Default Services/Products",
-    "nicho_mercado": "Default Niche"
-}
+from mongodb import business_collection, business_helper, documents_collection
+from models.models import BusinessBase, BusinessUpdate
 
-# Pydantic models for business requests
-class BusinessBase(BaseModel):
-    cnpj: str = Field(..., min_length=14, max_length=18)
-    inscricao_estadual: str
-    inscricao_municipal: str
-    razao_social: str
-    porte_empresa: str
-    endereco: Optional[str] = None
-    bairro: Optional[str] = None
-    numero: Optional[str] = None
-    cep: Optional[str] = None
-    cidade: Optional[str] = None
-    nome_fantasia: Optional[str] = None
-    servicos_produtos: Optional[str] = None
-    nicho_mercado: Optional[str] = None
+business_router = APIRouter(prefix="/business", tags=["Business"])
 
-class BusinessCreate(BusinessBase):
-    pass
+#
+# GET /business - Retrieve all business documents
+#
+@business_router.get("/", response_model=list[dict])
+async def get_all_businesses():
+    businesses = []
+    async for biz in business_collection.find():
+        businesses.append(business_helper(biz))
+    return businesses
 
-class BusinessUpdate(BaseModel):
-    cnpj: Optional[str] = Field(None, min_length=14, max_length=18)
-    inscricao_estadual: Optional[str] = None
-    inscricao_municipal: Optional[str] = None
-    razao_social: Optional[str] = None
-    porte_empresa: Optional[str] = None
-    endereco: Optional[str] = None
-    bairro: Optional[str] = None
-    numero: Optional[str] = None
-    cep: Optional[str] = None
-    cidade: Optional[str] = None
-    nome_fantasia: Optional[str] = None
-    servicos_produtos: Optional[str] = None
-    nicho_mercado: Optional[str] = None
-
-# Initialize the router
-router = APIRouter(prefix="/business", tags=["Business"])
-
-# Helper function that attempts to retrieve a business from the DB,
-# falling back to the default business if the DB is down or no result is found for a specific id.
-def get_business_with_fallback(business_id: int, db: Session) -> dict:
+#
+# GET /business/{business_id} - Retrieve a business by its ObjectId
+#
+@business_router.get("/{business_id}", response_model=dict)
+async def get_business(business_id: str):
     try:
-        business = db.query(Business).filter(Business.id == business_id).first()
-        if business:
-            return {
-                "id": business.id,
-                "razao_social": business.razao_social,
-                "cnpj": business.cnpj,
-                "inscricao_estadual": business.inscricao_estadual,
-                "inscricao_municipal": business.inscricao_municipal,
-                "porte_empresa": business.porte_empresa,
-                "endereco": business.endereco,
-                "bairro": business.bairro,
-                "numero": business.numero,
-                "cep": business.cep,
-                "cidade": business.cidade,
-                "nome_fantasia": business.nome_fantasia,
-                "servicos_produtos": business.servicos_produtos,
-                "nicho_mercado": business.nicho_mercado,
-            }
-    except Exception:
-        # If the DB operation fails, check if the request is for the default business (id==0)
-        if business_id == 0:
-            return DEFAULT_BUSINESS
-        raise HTTPException(status_code=503, detail="Service unavailable")
-    
-    # If no business is found and the request is for the default one, return it
-    if business_id == 0:
-        return DEFAULT_BUSINESS
+        obj_id = ObjectId(business_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid business id format")
+
+    biz = await business_collection.find_one({"_id": obj_id})
+    if biz:
+        return business_helper(biz)
     raise HTTPException(status_code=404, detail="Business not found")
 
-# Routes
+#
+# POST /business - Create a new business document
+#
+@business_router.post("/", response_model=dict)
+async def create_business(business_data: BusinessBase = Body(...)):
+    business_dict = business_data.dict()
+    business_dict["created_at"] = datetime.utcnow()
+    result = await business_collection.insert_one(business_dict)
+    created = await business_collection.find_one({"_id": result.inserted_id})
+    return business_helper(created)
 
-@router.get("/", response_model=list[dict])
-def get_all_businesses(db: Session = Depends(get_db)):
+#
+# PUT /business/{business_id} - Update an existing business
+#
+@business_router.put("/{business_id}", response_model=dict)
+async def update_business(business_id: str, business_data: BusinessUpdate = Body(...)):
     try:
-        businesses = db.query(Business).all()
-        return [
-            {
-                "id": b.id,
-                "razao_social": b.razao_social,
-                "cnpj": b.cnpj,
-                "inscricao_estadual": b.inscricao_estadual,
-                "inscricao_municipal": b.inscricao_municipal,
-                "porte_empresa": b.porte_empresa,
-                "endereco": b.endereco,
-                "bairro": b.bairro,
-                "numero": b.numero,
-                "cep": b.cep,
-                "cidade": b.cidade,
-                "nome_fantasia": b.nome_fantasia,
-                "servicos_produtos": b.servicos_produtos,
-                "nicho_mercado": b.nicho_mercado,
-            }
-            for b in businesses
-        ]
-    except Exception:
-        # Return default business for testing if DB is down
-        return [DEFAULT_BUSINESS]
+        obj_id = ObjectId(business_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid business id format")
 
-@router.get("/{business_id}", response_model=dict)
-def get_business(business_id: int, db: Session = Depends(get_db)):
-    return get_business_with_fallback(business_id, db)
+    update_data = {k: v for k, v in business_data.dict().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data provided to update")
 
-@router.post("/", response_model=dict)
-def create_business(business_data: BusinessCreate, db: Session = Depends(get_db)):
+    result = await business_collection.update_one({"_id": obj_id}, {"$set": update_data})
+    if result.modified_count == 1:
+        updated = await business_collection.find_one({"_id": obj_id})
+        return business_helper(updated)
+
+    # If no modification was made, check if the doc exists
+    existing = await business_collection.find_one({"_id": obj_id})
+    if existing:
+        return business_helper(existing)
+
+    raise HTTPException(status_code=404, detail="Business not found")
+
+#
+# DELETE /business/{business_id} - Delete a business by its ObjectId
+#
+@business_router.delete("/{business_id}", response_model=dict)
+async def delete_business(business_id: str):
     try:
-        new_business = Business(**business_data.dict())
-        db.add(new_business)
-        db.commit()
-        db.refresh(new_business)
-        return {
-            "message": f"Business {new_business.razao_social} created successfully",
-            "id": new_business.id
-        }
-    except Exception:
-        # If DB is down, simulate creation by returning the default business
-        return {
-            "message": f"Default business {DEFAULT_BUSINESS['razao_social']} used for testing",
-            "id": DEFAULT_BUSINESS["id"]
-        }
+        obj_id = ObjectId(business_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid business id format")
 
-@router.put("/{business_id}", response_model=dict)
-def update_business(business_id: int, business_data: BusinessUpdate, db: Session = Depends(get_db)):
-    business = get_business_with_fallback(business_id, db)
-    try:
-        # If we are using the default business, simulate an update
-        if business["id"] == DEFAULT_BUSINESS["id"]:
-            updated_business = {**business, **business_data.dict(exclude_unset=True)}
-            return {"message": f"Default business {updated_business['razao_social']} updated successfully"}
-        # Otherwise, update the business in the DB
-        business_instance = db.query(Business).filter(Business.id == business_id).first()
-        if not business_instance:
-            raise HTTPException(status_code=404, detail="Business not found")
-        for key, value in business_data.dict(exclude_unset=True).items():
-            setattr(business_instance, key, value)
-        db.commit()
-        db.refresh(business_instance)
-        return {"message": f"Business {business_instance.razao_social} updated successfully"}
-    except Exception:
-        raise HTTPException(status_code=503, detail="Service unavailable")
+    result = await business_collection.delete_one({"_id": obj_id})
+    if result.deleted_count == 1:
+        return {"message": "Business deleted successfully"}
+    raise HTTPException(status_code=404, detail="Business not found")
 
-@router.delete("/{business_id}", response_model=dict)
-def delete_business(business_id: int, db: Session = Depends(get_db)):
-    try:
-        business_instance = db.query(Business).filter(Business.id == business_id).first()
-        if not business_instance:
-            # If the default business is requested, simulate deletion
-            if business_id == DEFAULT_BUSINESS["id"]:
-                return {"message": f"Default business {DEFAULT_BUSINESS['razao_social']} deletion simulated"}
-            raise HTTPException(status_code=404, detail="Business not found")
-        db.delete(business_instance)
-        db.commit()
-        return {"message": f"Business {business_instance.razao_social} deleted successfully"}
-    except Exception:
-        # If DB is down, simulate deletion for default business
-        if business_id == DEFAULT_BUSINESS["id"]:
-            return {"message": f"Default business {DEFAULT_BUSINESS['razao_social']} deletion simulated"}
-        raise HTTPException(status_code=503, detail="Service unavailable")
 
-@router.get("/{business_id}/files", response_model=list[dict])
-def get_business_files(business_id: int, db: Session = Depends(get_db)):
+#
+# GET /business/{business_id}/files - Return all documents for a given business
+#
+@business_router.get("/{business_id}/files")
+async def list_business_files(business_id: str):
+    """
+    Return all 'documents' that belong to a specific business/company.
+    Each doc might have a "sheets" array or other metadata.
+    """
+    docs = []
     try:
-        business_instance = db.query(Business).filter(Business.id == business_id).first()
-        if not business_instance:
-            raise HTTPException(status_code=404, detail="Business not found")
-        files = db.query(File).filter(File.business_id == business_id).all()
-        return [
-            {"id": f.id, "filename": f.filename, "uploaded_at": f.uploaded_at}
-            for f in files
-        ]
-    except Exception:
-        # If the DB is down, return an empty list or default file list for testing
-        return []
+        # If you store 'company_id' as a *string*, it must match the actual 'business_id' string:
+        cursor = documents_collection.find({"company_id": business_id})
+        async for doc in cursor:
+            docs.append({
+                "id": str(doc["_id"]),
+                "company_id": doc["company_id"],
+                "sheets": doc["sheets"],
+                # add "file_names": doc.get("file_names", []) if you want
+            })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return docs
