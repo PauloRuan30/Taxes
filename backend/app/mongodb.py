@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://localhost:27017")
 db = client["Tax-Track_PROD"]
 
-# If you want to store these JSON documents in a 'Documents' collection:
 documents_collection = db.get_collection("Documents")
 business_collection = db.get_collection("business")
 users_collection = db.get_collection("users")
