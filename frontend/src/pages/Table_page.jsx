@@ -1,78 +1,134 @@
+// src/pages/TablePage.jsx
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Workbook } from "@fortune-sheet/react";
 import "@fortune-sheet/react/dist/index.css";
-import { useLocation, useNavigate } from "react-router-dom";
+
+// Bring back ExportButton
 import ExportButton from "../components/ExportButton";
 
-// Validate and ensure correct structure for FortuneSheet
-const validateSheets = (sheets) => {
+/**
+ * Utility to ensure FortuneSheet-compatible data structure
+ */
+function validateSheets(sheets) {
   if (!Array.isArray(sheets)) {
-    console.error("❌ sheets is not an array or is undefined:", sheets);
+    console.error("❌ 'sheets' is not an array:", sheets);
     return [];
   }
-
   return sheets.map((sheet) => {
-    // If 'celldata' already exists and has content, use it.
-    // Otherwise, if the sheet has a 'data' property, convert it.
-    let celldata = [];
-    if (Array.isArray(sheet.celldata) && sheet.celldata.length > 0) {
-      celldata = sheet.celldata;
-    } else if (Array.isArray(sheet.data) && sheet.data.length > 0) {
-      // Convert the 2D 'data' array to a flat array of cell objects.
-      celldata = sheet.data.flatMap((row, rowIndex) => {
-        return row.map((cell, colIndex) => {
-          // If cell is an object (with 'v' or 'm'), spread its contents.
+    const { celldata = [], data = [] } = sheet;
+
+    // If 'celldata' is empty but we have 'data', convert it:
+    let newCelldata = celldata;
+    if (!newCelldata.length && Array.isArray(data) && data.length) {
+      newCelldata = data.flatMap((row, r) =>
+        row.map((cell, c) => {
           if (cell && typeof cell === "object" && ("v" in cell || "m" in cell)) {
-            return { r: rowIndex, c: colIndex, ...cell };
+            return { r, c, ...cell };
           }
-          // Otherwise, wrap the cell value in an object.
-          return { r: rowIndex, c: colIndex, v: cell };
-        });
-      });
+          return { r, c, v: cell };
+        })
+      );
     }
 
-    // Calculate max rows and columns based on the converted celldata.
-    const maxRow = celldata.reduce((acc, cell) => Math.max(acc, cell.r + 1), 100);
-    const maxCol = celldata.reduce((acc, cell) => Math.max(acc, cell.c + 1), 26);
+    // Calculate row/col bounds
+    const maxRow = newCelldata.reduce((acc, cell) => Math.max(acc, cell.r + 1), 100);
+    const maxCol = newCelldata.reduce((acc, cell) => Math.max(acc, cell.c + 1), 26);
 
     return {
       ...sheet,
-      celldata, // ensure celldata is included
+      celldata: newCelldata,
       row: maxRow,
       column: maxCol,
-      config: { authority: { sheet: 0, cell: 0 }, merge: {}, rowlen: {}, columnlen: {} },
+      config: sheet.config || {
+        authority: { sheet: 0, cell: 0 },
+        merge: {},
+        rowlen: {},
+        columnlen: {},
+      },
     };
   });
-};
+}
 
-
-const TablePage = () => {
+export default function TablePage() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // We'll store the docId (Mongo _id) and the "sheets"
+  const [docId, setDocId] = useState(null);
   const [sheets, setSheets] = useState([]);
 
+  // On component mount, figure out what was passed in location.state
   useEffect(() => {
-    let sheetsData = [];
+    const docFromState = location.state?.doc; // e.g. { id, sheets }
+    const sheetsFromState = location.state?.data; // direct array of sheets
+    const docIdFromState = docFromState?.id || location.state?.docId || null;
 
-    if (location.state?.data && Array.isArray(location.state.data) && location.state.data.length > 0) {
-      sheetsData = location.state.data;
-    } else {
-      const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-      if (savedFiles.length > 0 && savedFiles[0].content) {
-        sheetsData = savedFiles[0].content;
-      }
+    if (docFromState) {
+      // We have a complete doc object with {id, sheets}
+      setDocId(docIdFromState);
+      setSheets(validateSheets(docFromState.sheets));
+    } else if (sheetsFromState) {
+      // We only got some 'data' array
+      setSheets(validateSheets(sheetsFromState));
+    } else if (docIdFromState) {
+      // If we only got an ID, fetch from DB
+      fetchDocument(docIdFromState);
     }
-
-    console.log("✅ Sheets Data Loaded:", sheetsData);
-    setSheets(validateSheets(sheetsData));
   }, [location.state]);
 
-  // Handle changes coming from FortuneSheet and keep latest data
-  const handleChange = useCallback((changedSheets) => {
-    setSheets(validateSheets(changedSheets));
-    console.log("🔄 Updated Sheets:", changedSheets);
-  }, []);
+  // If docId was found, fetch from DB
+  const fetchDocument = async (id) => {
+    try {
+      const resp = await axios.get(`http://localhost:8000/documents/${id}`);
+      setDocId(resp.data.id);
+      setSheets(validateSheets(resp.data.sheets));
+    } catch (err) {
+      console.error("Failed to load doc:", err);
+      alert("Erro ao carregar o documento.");
+      navigate("/BusinessManagement"); // or wherever you want to redirect
+    }
+  };
 
+  // Called whenever the user makes changes in the FortuneSheet
+  const handleChange = useCallback(
+    (changedSheets) => {
+      setSheets(validateSheets(changedSheets));
+    },
+    []
+  );
+
+  // Actual save to DB
+  const handleSave = async () => {
+    if (!docId) {
+      alert("Este documento não possui ID no banco, não é possível salvar.");
+      return;
+    }
+    try {
+      const payload = { sheets };
+      await axios.put(`http://localhost:8000/documents/${docId}`, payload);
+      alert("Alterações salvas no servidor!");
+    } catch (err) {
+      console.error("Erro ao salvar documento:", err);
+      alert("Falha ao salvar alterações no servidor.");
+    }
+  };
+
+  // 🔑 Shortcut: Ctrl + S
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      // Check if Ctrl + S
+      if (e.ctrlKey && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleSave]);
+
+  // If no sheets loaded yet, show a loading indicator
   if (!sheets.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
@@ -89,40 +145,45 @@ const TablePage = () => {
             r="10"
             stroke="currentColor"
             strokeWidth="4"
-          ></circle>
+          />
           <path
             className="opacity-75"
             fill="currentColor"
             d="M4 12a8 8 0 018-8v8H4z"
-          ></path>
+          />
         </svg>
         <p className="mt-4 text-gray-600">Carregando dados da planilha...</p>
       </div>
     );
   }
 
-  const options = {
+  // FortuneSheet config
+  const workbookOptions = {
     data: sheets,
     showToolbar: true,
     showGrid: true,
     showContextmenu: true,
-    row: Math.max(...sheets.map(sheet => sheet.row || 100)),
-    column: Math.max(...sheets.map(sheet => sheet.column || 26)),
-    style: { width: "100%", height: "100vh" },
-    onChange: handleChange,
-    hooks: { beforeCellMouseDown: () => true },
-    cellContextMenu: true,
     allowEdit: true,
-    plugins: [],
+    onChange: handleChange,
+    style: { width: "100%", height: "calc(100vh - 40px)" },
   };
 
   return (
-    <div className="w-full h-screen">
-      <Workbook {...options} />
-      {/* Pass the updated sheets state to ExportButton */}
-      <ExportButton sheets={sheets} />
+    <div className="w-full h-screen flex flex-col">
+      {/* Row with Save + Export side by side */}
+      <div className="p-2 flex items-center space-x-2 bg-gray-200">
+        <button
+          onClick={handleSave}
+          className="bg-green-600 text-white px-4 py-2 rounded"
+        >
+          Salvar
+        </button>
+      </div>
+
+      <div style={{ flex: 1 }}>
+        <Workbook {...workbookOptions} />
+        <ExportButton sheets={sheets} />
+      </div>
     </div>
   );
-};
-
-export default TablePage;
+}

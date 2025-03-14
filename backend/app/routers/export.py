@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Response
 from typing import List, Dict
 from services.export_utils import export_file, export_file_to_xlsx, export_file_to_csv
 
-router = APIRouter()
+export_router = APIRouter()
 
 def create_zip_response(file_dicts: List[Dict], export_fn, file_extension: str, zip_filename: str) -> Response:
     zip_buffer = io.BytesIO()
@@ -32,19 +32,19 @@ def create_zip_response(file_dicts: List[Dict], export_fn, file_extension: str, 
         headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
     )
 
-@router.post("/export/")
+@export_router.post("/export/")
 async def export_txt(updated_files: List[Dict]) -> Response:
     if not updated_files:
         raise HTTPException(status_code=400, detail="No file data provided for export.")
     return create_zip_response(updated_files, export_file, ".txt", "exported_files.zip")
 
-@router.post("/export/xlsx/")
+@export_router.post("/export/xlsx/")
 async def export_xlsx(updated_files: List[Dict]) -> Response:
     if not updated_files:
         raise HTTPException(status_code=400, detail="No file data provided for export.")
     return create_zip_response(updated_files, export_file_to_xlsx, ".xlsx", "exported_files.xlsx.zip")
 
-@router.post("/export/csv/")
+@export_router.post("/export/csv/")
 async def export_csv(updated_files: List[Dict]) -> Response:
     if not updated_files:
         raise HTTPException(status_code=400, detail="No file data provided for export.")

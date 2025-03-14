@@ -35,41 +35,31 @@ export default function ImportArchives() {
       setError("Selecione uma empresa e pelo menos um arquivo.");
       return;
     }
-
-    setIsUploading(true);
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file.file));
-    formData.append("company_id", selectedCompany);
-
+  
     try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files", file.file));
+      formData.append("company_id", selectedCompany);
+  
       const { data } = await axios.post("http://localhost:8000/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      console.log("✅ API Response:", data); // Log the API response
-
-      if (!data || !Array.isArray(data.data) || data.data.length === 0) {
-        setError("Nenhuma planilha foi processada.");
-        return;
+  
+      // data.data[0] should contain { company_id, sheets, mongo_inserted_id }
+      if (data.data && data.data.length > 0) {
+        const doc = data.data[0];
+        navigate("/tablePage", {
+          state: {
+            doc: {
+              id: doc.mongo_inserted_id,
+              sheets: doc.sheets,
+            },
+          },
+        });
       }
-
-      // Ensure the sheets exist before navigating
-      const processedSheets = data.data[0]?.sheets || [];
-
-      if (!Array.isArray(processedSheets) || processedSheets.length === 0) {
-        setError("Dados inválidos recebidos do servidor.");
-        return;
-      }
-
-      console.log("✅ Processed Sheets:", processedSheets); // Debugging
-
-      // If you want to jump to a table view:
-      navigate("/tablePage", { state: { data: processedSheets, companyId: selectedCompany } });
-
     } catch (error) {
-      setError(error.response?.data?.detail || "Falha ao carregar os arquivos.");
-    } finally {
-      setIsUploading(false);
+      console.error(error);
+      setError("Falha ao carregar os arquivos.");
     }
   };
 

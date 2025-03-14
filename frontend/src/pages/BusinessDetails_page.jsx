@@ -18,14 +18,14 @@ export default function BusinessDetails() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [newFiles, setNewFiles] = useState([]);
+  const [newFiles, setNewFiles] = useState([]); // For FilePond
 
   useEffect(() => {
     fetchBusiness();
     fetchFiles();
   }, [businessId]);
 
+  // --- Load the business from /business/:businessId ---
   const fetchBusiness = async () => {
     try {
       const response = await axios.get(`http://localhost:8000/business/${businessId}`);
@@ -36,15 +36,14 @@ export default function BusinessDetails() {
     }
   };
 
+  // --- Load docs from /business/:businessId/files ---
   const fetchFiles = async () => {
     try {
-      // Attempt to fetch from DB:
       const response = await axios.get(`http://localhost:8000/business/${businessId}/files`);
-      // If the route is implemented, we get an array of docs
       if (response.data.length > 0) {
         setFiles(response.data);
       } else {
-        // fallback to localStorage
+        // fallback to localStorage if no docs in DB
         loadFilesFromLocalStorage();
       }
     } catch (error) {
@@ -55,6 +54,7 @@ export default function BusinessDetails() {
     }
   };
 
+  // -- LocalStorage fallback (optional) --
   const loadFilesFromLocalStorage = () => {
     const savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
     const associatedFiles = savedFiles.find((group) => group.companyId === businessId);
@@ -65,15 +65,15 @@ export default function BusinessDetails() {
     }
   };
 
+  // -- Save in localStorage (optional) --
   const saveFilesLocally = (updatedFiles) => {
     let savedFiles = JSON.parse(localStorage.getItem("savedFiles")) || [];
-    // Remove any existing entry for this business
     savedFiles = savedFiles.filter((group) => group.companyId !== businessId);
-    // Re-add the updated file list
     savedFiles.push({ companyId: businessId, files: updatedFiles });
     localStorage.setItem("savedFiles", JSON.stringify(savedFiles));
   };
 
+  // ---- Update business data (PUT /business/:businessId) ----
   const handleEditBusiness = async () => {
     try {
       await axios.put(`http://localhost:8000/business/${businessId}`, editData);
@@ -84,6 +84,7 @@ export default function BusinessDetails() {
     }
   };
 
+  // ---- Delete the business (DELETE /business/:businessId) ----
   const handleDeleteBusiness = async () => {
     if (window.confirm("Tem certeza que deseja excluir esta empresa?")) {
       try {
@@ -95,65 +96,12 @@ export default function BusinessDetails() {
     }
   };
 
-  // Example function re-uploading "selected files" to /upload/
-  // If you're storing them in DB from the "ImportArchives" page only,
-  // you may not need this. It's just a demonstration.
-  const openFile = async () => {
-    try {
-      const formData = new FormData();
-      selectedFiles.forEach((file) => {
-        // Each "file" might be an object with { name, content }
-        const blob = new Blob([file.content.rawText || JSON.stringify(file.content)], {
-          type: "text/plain",
-        });
-        formData.append("files", blob, file.name);
-      });
-
-      // For the route to accept it, you likely need a "company_id" as well
-      formData.append("company_id", businessId);
-
-      const { data } = await axios.post("http://localhost:8000/upload/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (data.errors?.length) {
-        alert("Erro ao processar os arquivos.");
-        return;
-      }
-
-      // Then navigate to your table page with the processed data
-      navigate("/tablePage", { state: { data: data.data } });
-    } catch (error) {
-      alert("Erro ao processar os arquivos. O formato pode estar incorreto.");
-    }
-  };
-
-  const toggleFileSelection = (file) => {
-    setSelectedFiles((prev) =>
-      prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
-    );
-  };
-
-  const selectAllFiles = () => {
-    if (selectedFiles.length === files.length) {
-      setSelectedFiles([]);
-    } else {
-      setSelectedFiles(files);
-    }
-  };
-
-  const deleteSelectedFiles = () => {
-    if (!selectedFiles.length) return;
-    const updatedFiles = files.filter((file) => !selectedFiles.includes(file));
-    saveFilesLocally(updatedFiles);
-    setFiles(updatedFiles);
-    setSelectedFiles([]);
-  };
-
+  // ---- Add new files with FilePond ----
   const handleAddFiles = async () => {
     if (!newFiles.length) return;
-
     const updatedFiles = [...files];
+
+    // Convert each FilePond item to a custom object in memory
     const newFileObjects = await Promise.all(
       newFiles.map(async (fileItem) => {
         const file = fileItem.file;
@@ -174,6 +122,7 @@ export default function BusinessDetails() {
     setNewFiles([]);
   };
 
+  // --- If still loading or no business found
   if (loading) return <p>Carregando...</p>;
   if (!business) return <p className="text-red-500">Erro: Empresa não encontrada.</p>;
 
@@ -192,6 +141,7 @@ export default function BusinessDetails() {
       <p><strong>Serviços/Produtos:</strong> {business.servicos_produtos || "N/A"}</p>
       <p><strong>Nicho de Mercado:</strong> {business.nicho_mercado || "N/A"}</p>
 
+      {/* ---- Delete the business ---- */}
       <button
         onClick={handleDeleteBusiness}
         className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 mt-4"
@@ -199,6 +149,7 @@ export default function BusinessDetails() {
         Excluir Empresa
       </button>
 
+      {/* ---- Edit the business info ---- */}
       <h2 className="text-2xl font-bold mt-6">Editar Empresa</h2>
       {isEditing ? (
         <div className="mt-4">
@@ -231,6 +182,7 @@ export default function BusinessDetails() {
         </button>
       )}
 
+      {/* ---- FilePond to add new .txt files ---- */}
       <h2 className="text-2xl font-bold mt-6">Arquivos Associados</h2>
       <FilePond
         files={newFiles}
@@ -248,47 +200,24 @@ export default function BusinessDetails() {
         Adicionar Arquivos
       </button>
 
+      {/* ---- Display each doc from DB or localStorage, with an "Abrir" button ---- */}
       {files.length > 0 ? (
-        <div className="mt-4">
-          <button
-            onClick={selectAllFiles}
-            className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 mr-2"
-          >
-            {selectedFiles.length === files.length ? "Desmarcar Todos" : "Selecionar Todos"}
-          </button>
-          <button
-            onClick={deleteSelectedFiles}
-            className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
-          >
-            Excluir Selecionados
-          </button>
-          <ul className="mt-4">
-            {files.map((file, index) => (
-              <li
-                key={index}
-                className="border p-2 rounded mt-2 flex items-center bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+        <ul className="mt-4">
+          {files.map((doc) => (
+            <li key={doc.id} className="border p-2 rounded mt-2 flex items-center">
+              <span className="mr-2">Documento ID: {doc.id}</span>
+              <button
+                onClick={() => navigate("/tablePage", { state: { doc } })}
+                className="bg-blue-500 text-white px-2 py-1 rounded ml-auto"
               >
-                <input
-                  type="checkbox"
-                  checked={selectedFiles.includes(file)}
-                  onChange={() => toggleFileSelection(file)}
-                  className="mr-2"
-                />
-                {file.name || file.id /* or however you want to label */}
-              </li>
-            ))}
-          </ul>
-        </div>
+                Abrir
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : (
         <p className="text-gray-500">Nenhum arquivo encontrado.</p>
       )}
-
-      <button
-        onClick={openFile}
-        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 mt-4"
-      >
-        Abrir Selecionados
-      </button>
     </div>
   );
 }

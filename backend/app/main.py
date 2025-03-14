@@ -8,7 +8,7 @@ from routers.auth import auth_router
 from routers.user import user_router 
 from routers.business import business_router
 from routers.upload import router as upload_router
-
+from routers.export import export_router
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(business_router)
 app.include_router(upload_router)
+app.include_router(export_router)
 
 
 if __name__ == "__main__":
